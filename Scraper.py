@@ -33,7 +33,7 @@ class Scraper:
         email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
         return re.findall(email_pattern, html)
     
-    # Function to automate Google search using Selenium
+    """   # Function to automate Google search using Selenium
     def google_search(self, company_name, num_results=5):
         search_query = f"{company_name} contact email"
         search_results = []
@@ -64,7 +64,52 @@ class Scraper:
             driver.quit()
 
         return search_results
+    
+    """
 
+    def google_search(self, query, api_key, search_engine_id, num_results=10):
+         """
+        Perform a Google search using the Custom Search JSON API.
+
+        :param query: Search query string
+        :param api_key: Google API key
+        :param search_engine_id: Google Custom Search Engine ID (cx)
+        :param num_results: Number of results to return (max 10 per request)
+        :return: List of search result URLs and titles
+        """
+         url = "https://www.googleapis.com/customsearch/v1"
+         results = []
+         params = {
+            "q": query,
+            "key": api_key,
+            "cx": search_engine_id,
+            "num": min(num_results, 10)  # Maximum 10 results per request
+         }
+
+         try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()  # Raise HTTPError for bad responses
+            data = response.json()
+
+            for item in data.get("items", []):
+                results.append({
+                    "title": item.get("title"),
+                    "link": item.get("link")
+                })
+         except requests.RequestException as e:
+            print(f"Request error: {e}")
+         except ValueError as e:
+            print(f"Error parsing JSON response: {e}")
+    
+         return results
+
+
+     # Function to save emails to a CSV file
+    def save_emails_to_csv(self, emails, filename):
+         df = pd.DataFrame(emails, columns=['Email'])
+         df.drop_duplicates(inplace=True)  # Remove duplicate emails
+         df.to_csv(filename, index=False)
+         print(f"Saved {len(emails)} emails to {filename}")
 
 
 
@@ -72,13 +117,50 @@ class Scraper:
 if __name__=='__main__':
      scraper = Scraper()
      company_name = input("Enter the company name: ")
-     num_results = 5  # Number of Google search results to scrape
+     num_results = 10  # Number of Google search results to scrape
 
-     print("[*] Searching Google...")
-     search_results = scraper.google_search(company_name, num_results=num_results)
+     # Replace with your API key and Search Engine ID
+     API_KEY = "AIzaSyD_dgWLVfun_TWC4xrxCRHK2q2W_eSnm64"
+     SEARCH_ENGINE_ID = "017357165953623309164:4esf1pr-zas"
 
-     print(search_results)
+     #print("[*] Searching Google...")
+    #search_results = scraper.google_search(company_name, num_results=num_results)
+
+    # Search query
+     search_query = f"{company_name} contact email"
+
+     print(f"Searching for: {search_query}")
+     results = scraper.google_search(search_query, API_KEY, SEARCH_ENGINE_ID, 10)
+
+
+     if results:
+        print(f"Found {len(results)} results:")
+        for idx, result in enumerate(results, start=1):
+            print(f"{idx}. {result['title']}: {result['link']}")
+     else:
+        print("No results found.")
+
+     
 
      all_emails = set()  # Use a set to avoid duplicates
 
+     for result in results:
+        url = result['link']
+        print(f"[*] Scraping {url}")
+        html = scraper.get_html(url)
+        if html:
+            emails = scraper.extract_emails(html)
+            all_emails.update(emails)
+
+     if all_emails:
+        print(f"[+] Found {len(all_emails)} emails:")
+        for email in all_emails:
+            print(f"    - {email}")
+
+        # Save emails to CSV
+        scraper.save_emails_to_csv(list(all_emails), f"{company_name}_emails.csv")
+     else:
+        print("[-] No emails found.")
+
+     
 
